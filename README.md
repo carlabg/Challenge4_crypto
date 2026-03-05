@@ -1,4 +1,4 @@
-# Challenge4_crypto — Movie Night Secret Sharing
+# Challenge 4_crypto — Movie Night Secret Sharing
 
 ## Scenario
 Our system solves a simple coordination/trust problem: **n friends can only watch content if all n friends are present and participate**.
@@ -52,36 +52,26 @@ The **Dealer** prepares the "lock" for the upcoming episode:
 4.  **Verification**: The contract hashes the result. If `keccak256(Result) == StoredHash`, the secret is emitted via a `SecretRevealed` event.
 5.  **Access**: The group uses the revealed secret to decrypt the video stream. The contract automatically increments the `currentEpisode` counter.
 
-## Threats and attacks
-
+### Threat Model (Intentional Attacks)
 | Attack Scenario | Design Mitigation |
 | :--- | :--- |
-| **The "Traitor" Friend** (Submits a wrong share) | The contract performs a `keccak256` check. If even one bit of one share is incorrect, the result won't match the hash and the transaction reverts. |
-| **The "Early Bird"** (Fewer than 6 people try to unlock) | Mathematically, $n$ points are required to solve a degree $n$ polynomial. With only $n-1$ points, the secret remains perfectly hidden (Information-Theoretic Security). |
-| **Replay Attack** (Using Episode 1 shares for Episode 2) | The contract tracks the `currentEpisode` state. Each episode requires a new commitment hash and a new set of shares from the Dealer. |
-| **Public Eavesdropping** (Hacker reading the contract) | Since only the **hash** is stored on-chain, the secret is never visible on the blockchain until the friends intentionally reconstruct it. |
+| **The friend that doesn't want to watch the show** | A malicious friend submits a wrong share. The `keccak256` check fails because the math won't match the Dealer's commitment, causing the transaction to **fail**. |
+| **Excluding a friend** | A subset of friends tries to unlock the show early. Mathematically, $n$ points are required for a degree $n$ polynomial. $n-1$ points provide **zero information**. |
+
+
+### System Failures (Unintentional Issues)
+| Failure Scenario | Impact | Mitigation |
+| :--- | :--- | :--- |
+| **Availability Loss** | A friend loses their phone/key. | Current design requires $n/n$. Future work: implement a $t$-out-of-$n$ threshold. |
+| **Initialization Error** | Dealer forgets to set the hash. | The `unlock` function requires a non-zero hash to be set before execution. |
 
 ## Primitives
 
 * **Shamir’s Secret Sharing (SSS)**: Used to distribute the secret key. It ensures that no single person knows the key.
 * **Lagrange Interpolation**: The algebraic method used on-chain to reconstruct the polynomial and find the value at $x=0$.
-* **Keccak-256 Hashing**: Acts as a **Commitment Scheme**. It allows the contract to verify the reconstruction result without having the secret pre-stored in plain text.
-
+* **Keccak-256 Hashing**: Is a cryptographic hash function. In this protocol, it serves as a Commitment Scheme. It takes the secret episode key and produces a unique 32-byte "fingerprint.".
 * **Modular Inverse (Fermat's Little Theorem)**: Used to perform division within the finite field $\mathbb{Z}_q$ in Solidity, which is essential for the Lagrange formula.
 
-## 5. Implementation Details (Solidity)
-The contract is deployed on the **Sepolia Testnet**. Key features include:
-* `setEpisodeHash()`: Restricted to the Host to define the next goal.
-* `reconstructSecret()`: An optimized function implementing the summation of Lagrange basis polynomials.
-* **Modular Arithmetic**: Custom internal functions for `addMod`, `subMod`, and `mulMod` to handle 256-bit numbers within the prime field $Q$.
-
----
-
-### **Demo Instructions**
-1.  **Deployment**: Show the contract on Remix and confirm it is connected to Sepolia.
-2.  **Locking**: Call `setEpisodeHash` with the hash of a secret (e.g., `777`).
-3.  **Unlocking (Happy Path)**: Input the 6 correct shares and show the event logs revealing the secret.
-4.  **Attack Scenario**: Attempt to unlock with one incorrect share to demonstrate the contract's revert mechanism.
 
 
 >>>>>>> 53d37e441a40d19fdd693db2d9e4591e65b40de3
