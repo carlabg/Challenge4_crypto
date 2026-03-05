@@ -1,7 +1,6 @@
 # Challenge4_crypto — Movie Night Secret Sharing
 
 ## Scenario
-<<<<<<< HEAD
 Our system solves a simple coordination/trust problem: **n friends can only watch content if all n friends are present and participate**.
 
 Instead of trusting one person to hold the full access code, the code is split into secret shares. Each friend receives one share and must reveal it on-chain. An episode is unlocked only when all valid shares are revealed.
