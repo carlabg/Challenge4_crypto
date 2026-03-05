@@ -75,6 +75,3 @@ The **Dealer** prepares the "lock" for the upcoming episode:
 * **Keccak-256 Hashing**: Is a cryptographic hash function. In this protocol, it serves as a Commitment Scheme. It takes the secret episode key and produces a unique 32-byte "fingerprint.".
 * **Modular Inverse (Fermat's Little Theorem)**: Used to perform division within the finite field $\mathbb{Z}_q$ in Solidity, which is essential for the Lagrange formula.
 
-
-
->>>>>>> 53d37e441a40d19fdd693db2d9e4591e65b40de3
