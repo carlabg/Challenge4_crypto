@@ -1,33 +1,36 @@
 # Challenge 4_crypto — Movie Night Secret Sharing
 
-## Scenario
-Our system solves a simple coordination/trust problem: **n friends can only watch content if all n friends are present and participate**.
+## Scenario: Secure Group Viewing for Game of Thrones
 
-Instead of trusting one person to hold the full access code, the code is split into secret shares. Each friend receives one share and must reveal it on-chain. An episode is unlocked only when all valid shares are revealed.
+Six friends are tired of agreeing to wait and watch the new episodes of *Game of Thrones* together, only for someone to secretly watch them early. They decide to use a special app that locks each episode and can only unlock it when **everyone is present and agrees at the same time**.
 
-The contract is reusable for a full platform flow (e.g., TV series): it uses an **episode counter** so the same friend group can run many rounds (episode 1, episode 2, etc.) without redeploying.
+### How It Works
 
-Why blockchain here:
-- **Public verifiability**: everyone can verify who revealed and when.
-- **No central trusted organizer**: the smart contract enforces the “all friends required” rule.
-- **Tamper-resistant logs**: events and state transitions are immutable once mined.
+When a new episode is available, the app asks each friend to approve the viewing by submitting a **digital private share** from their own device. Key points:
 
----
+- No one can enter another person’s code.
+- Only after the app verifies that **all six people’s private shares** have been submitted for that specific episode, it unlocks the video.
+- The episode can then be played.
 
-## Actors and assumptions
-- **Organizer (deployer)**: deploys once with friend addresses, then starts each episode with new commitments/deadline/hash.
-- **Friends (participants)**: each one has exactly one secret share and one salt.
-- **Adversary**: can read all on-chain data, front-run transactions, or refuse to reveal (griefing/DoS).
+This solves the problem of early watching in a group with imperfect trust, **without relying on one friend or a centralized server**. The blockchain makes sense because the app provides a **shared, tamper-resistant source of truth**:
 
-Assumptions:
-- At setup time, each friend receives the correct `(share, salt)` off-chain via a secure channel.
-- Keccak-256 remains collision/preimage resistant in practice.
-- Ethereum/Sepolia consensus is honest-majority (standard blockchain assumption).
+- Everyone can verify that the rule is: *“all six must approve.”*
+- No single participant can override it.
 
-Public on-chain visibility:
-- Friend addresses, episode commitments, reveal transactions, timestamps, and final results are public.
-- Revealed shares become public after reveal.
+## Actors and Assumptions
 
+**Actors:**
+
+1. The six friends  
+2. The smart contract  
+3. The blockchain network  
+
+**Assumptions:**
+
+- Any friend could be potentially malicious and try to unlock early or claim others agreed.  
+- No friend can forge another friend’s private share.  
+- Each friend controls their device and private key.  
+- Blockchain consensus works as intended.
 ---
 
 ## Protocol
