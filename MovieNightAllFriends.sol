@@ -2,56 +2,56 @@
 pragma solidity ^0.8.24;
 
 contract MovieNightAllFriends {
+    uint256 public constant FIELD_PRIME =
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F;
+
     address public immutable organizer;
     uint256 public immutable totalFriends;
     uint256 public currentEpisode;
     address[] public friendList;
+    mapping(address => uint256) public friendX;
 
     struct Episode {
-        uint256 deadline;
-        bytes32 movieCodeHash;
-        uint256 revealCount;
-        bytes32 xorAccumulator;
-        bytes32 reconstructedCode;
-        bool movieUnlocked;
-        bool expired;
+        bytes32 secretHash;
+        uint256 submissions;
+        uint256 reconstructedSecret;
+        bool secretRevealed;
         bool initialized;
     }
 
     mapping(uint256 => Episode) public episodes;
 
     mapping(address => bool) public isFriend;
-    mapping(uint256 => mapping(address => bytes32)) public shareCommitment;
-    mapping(uint256 => mapping(address => bool)) public hasRevealed;
-    mapping(uint256 => mapping(address => bytes32)) public revealedShare;
+    mapping(uint256 => mapping(address => bool)) public hasSubmitted;
+    mapping(uint256 => mapping(address => uint256)) public submittedY;
 
-    event EpisodeStarted(
+    event EpisodeHashSet(
         uint256 indexed episodeId,
-        bytes32 movieCodeHash,
-        uint256 deadline
+        bytes32 indexed secretHash
     );
-    event ShareRevealed(
+    event ShareSubmitted(
         uint256 indexed episodeId,
         address indexed friend,
-        uint256 revealCount
+        uint256 x,
+        uint256 y,
+        uint256 submissions
     );
-    event MovieUnlocked(uint256 indexed episodeId, bytes32 reconstructedCode);
-    event UnlockFailed(uint256 indexed episodeId, bytes32 reconstructedCode);
-    event Expired(uint256 indexed episodeId, uint256 atTimestamp);
+    event SecretRevealed(uint256 indexed episodeId, uint256 secret);
 
     error NotOrganizer();
     error NotFriend();
     error DuplicateFriend();
     error ZeroAddressFriend();
     error LengthMismatch();
-    error InvalidDeadline();
-    error AlreadyRevealed();
-    error InvalidShare();
-    error AlreadyFinalized();
-    error DeadlinePassed();
-    error DeadlineNotPassed();
-    error NoEpisode();
     error EpisodeStillActive();
+    error NoActiveEpisode();
+    error AlreadySubmitted();
+    error InvalidFieldElement();
+    error InvalidXForFriend();
+    error ReconstructionMismatch();
+    error AlreadyFinalized();
+    error EpisodeMismatch();
+    error NotEnoughShares();
 
     modifier onlyOrganizer() {
         if (msg.sender != organizer) revert NotOrganizer();
@@ -64,9 +64,10 @@ contract MovieNightAllFriends {
     }
 
     modifier activeEpisode(uint256 episodeId) {
+        if (currentEpisode == 0) revert NoActiveEpisode();
+        if (episodeId != currentEpisode) revert EpisodeMismatch();
         Episode storage episode = episodes[episodeId];
-        if (!episode.initialized) revert NoEpisode();
-        if (episode.movieUnlocked || episode.expired) revert AlreadyFinalized();
+        if (!episode.initialized || episode.secretRevealed) revert AlreadyFinalized();
         _;
     }
 
@@ -83,81 +84,73 @@ contract MovieNightAllFriends {
 
             isFriend[friend] = true;
             friendList.push(friend);
+            friendX[friend] = i + 1;
         }
     }
 
-    function startEpisode(
-        bytes32[] memory commitments,
-        bytes32 movieCodeHash,
-        uint256 revealWindowSeconds
-    ) external onlyOrganizer {
-        if (commitments.length != totalFriends) revert LengthMismatch();
-        if (revealWindowSeconds == 0) revert InvalidDeadline();
+    function setEpisodeHash(bytes32 secretHash) external onlyOrganizer {
+        if (secretHash == bytes32(0)) revert InvalidFieldElement();
 
         if (currentEpisode != 0) {
             Episode storage previous = episodes[currentEpisode];
-            if (
-                previous.initialized &&
-                !previous.movieUnlocked &&
-                !previous.expired
-            ) {
+            if (previous.initialized && !previous.secretRevealed) {
                 revert EpisodeStillActive();
             }
         }
 
         currentEpisode += 1;
         Episode storage episode = episodes[currentEpisode];
-        episode.deadline = block.timestamp + revealWindowSeconds;
-        episode.movieCodeHash = movieCodeHash;
+        episode.secretHash = secretHash;
         episode.initialized = true;
+        episode.submissions = 0;
+        episode.reconstructedSecret = 0;
+        episode.secretRevealed = false;
 
-        for (uint256 i = 0; i < totalFriends; i++) {
-            shareCommitment[currentEpisode][friendList[i]] = commitments[i];
-        }
-
-        emit EpisodeStarted(currentEpisode, movieCodeHash, episode.deadline);
+        emit EpisodeHashSet(currentEpisode, secretHash);
     }
 
-    function revealShare(bytes32 share, bytes32 salt)
-        external
-        onlyFriend
-        activeEpisode(currentEpisode)
-    {
-        Episode storage episode = episodes[currentEpisode];
+    function unlockEpisode(
+        uint256 episodeId,
+        uint256 x,
+        uint256 y
+    ) external onlyFriend activeEpisode(episodeId) {
+        _submitShare(episodeId, x, y);
+    }
 
-        if (block.timestamp > episode.deadline) revert DeadlinePassed();
-        if (hasRevealed[currentEpisode][msg.sender]) revert AlreadyRevealed();
+    function finalizeEpisode(uint256 episodeId) external activeEpisode(episodeId) {
+        Episode storage episode = episodes[episodeId];
+        if (episode.submissions < totalFriends) revert NotEnoughShares();
+        _finalizeEpisode(episodeId);
+    }
 
-        bytes32 expected = keccak256(
-            abi.encodePacked(msg.sender, currentEpisode, share, salt)
+    function _submitShare(uint256 episodeId, uint256 x, uint256 y) internal {
+        Episode storage episode = episodes[episodeId];
+        if (!episode.initialized || episode.secretRevealed) revert AlreadyFinalized();
+        if (hasSubmitted[episodeId][msg.sender]) revert AlreadySubmitted();
+        if (x != friendX[msg.sender]) revert InvalidXForFriend();
+        if (x == 0 || x >= FIELD_PRIME || y >= FIELD_PRIME) {
+            revert InvalidFieldElement();
+        }
+
+        hasSubmitted[episodeId][msg.sender] = true;
+        submittedY[episodeId][msg.sender] = y;
+        episode.submissions += 1;
+
+        emit ShareSubmitted(
+            episodeId,
+            msg.sender,
+            x,
+            y,
+            episode.submissions
         );
-        if (expected != shareCommitment[currentEpisode][msg.sender]) {
-            revert InvalidShare();
+
+        if (episode.submissions == totalFriends) {
+            _finalizeEpisode(episodeId);
         }
-
-        hasRevealed[currentEpisode][msg.sender] = true;
-        revealedShare[currentEpisode][msg.sender] = share;
-        episode.xorAccumulator ^= share;
-        episode.revealCount += 1;
-
-        emit ShareRevealed(currentEpisode, msg.sender, episode.revealCount);
-
-        if (episode.revealCount == totalFriends) {
-            _finalizeUnlock(currentEpisode);
-        }
-    }
-
-    function markExpired() external activeEpisode(currentEpisode) {
-        Episode storage episode = episodes[currentEpisode];
-
-        if (block.timestamp <= episode.deadline) revert DeadlineNotPassed();
-
-        episode.expired = true;
-        emit Expired(currentEpisode, block.timestamp);
     }
 
     function canWatchEpisode(uint256 episodeId) external view returns (bool) {
-        return episodes[episodeId].movieUnlocked;
+        return episodes[episodeId].secretRevealed;
     }
 
     function getEpisodeStatus(
@@ -166,37 +159,94 @@ contract MovieNightAllFriends {
         external
         view
         returns (
-            uint256 deadline,
-            uint256 revealCount,
-            bool movieUnlocked,
-            bool expired,
-            bytes32 reconstructedCode
+            uint256 submissions,
+            bool secretRevealed,
+            uint256 reconstructedSecret,
+            bytes32 secretHash
         )
     {
         Episode storage episode = episodes[episodeId];
         return (
-            episode.deadline,
-            episode.revealCount,
-            episode.movieUnlocked,
-            episode.expired,
-            episode.reconstructedCode
+            episode.submissions,
+            episode.secretRevealed,
+            episode.reconstructedSecret,
+            episode.secretHash
         );
     }
 
-    function _finalizeUnlock(uint256 episodeId) internal {
+    function _finalizeEpisode(uint256 episodeId) internal {
         Episode storage episode = episodes[episodeId];
-        episode.reconstructedCode = episode.xorAccumulator;
+        uint256 secret = _reconstructAtZero(episodeId);
 
-        if (
-            keccak256(abi.encodePacked(episode.reconstructedCode)) ==
-            episode.movieCodeHash
-        ) {
-            episode.movieUnlocked = true;
-            emit MovieUnlocked(episodeId, episode.reconstructedCode);
-        } else {
-            episode.expired = true;
-            emit UnlockFailed(episodeId, episode.reconstructedCode);
+        if (keccak256(abi.encodePacked(secret)) != episode.secretHash) {
+            revert ReconstructionMismatch();
         }
+
+        episode.reconstructedSecret = secret;
+        episode.secretRevealed = true;
+        emit SecretRevealed(episodeId, secret);
     }
 
+    function _reconstructAtZero(uint256 episodeId) internal view returns (uint256) {
+        uint256 secret = 0;
+
+        for (uint256 i = 0; i < totalFriends; i++) {
+            address friendI = friendList[i];
+            uint256 xi = friendX[friendI];
+            uint256 yi = submittedY[episodeId][friendI];
+
+            uint256 li = 1;
+            for (uint256 j = 0; j < totalFriends; j++) {
+                if (i == j) continue;
+
+                address friendJ = friendList[j];
+                uint256 xj = friendX[friendJ];
+
+                uint256 numerator = _subMod(0, xj);
+                uint256 denominator = _subMod(xi, xj);
+                uint256 factor = _mulMod(numerator, _invMod(denominator));
+                li = _mulMod(li, factor);
+            }
+
+            secret = _addMod(secret, _mulMod(yi, li));
+        }
+
+        return secret;
+    }
+
+    function _addMod(uint256 a, uint256 b) internal pure returns (uint256) {
+        return addmod(a, b, FIELD_PRIME);
+    }
+
+    function _subMod(uint256 a, uint256 b) internal pure returns (uint256) {
+        return addmod(a, FIELD_PRIME - (b % FIELD_PRIME), FIELD_PRIME);
+    }
+
+    function _mulMod(uint256 a, uint256 b) internal pure returns (uint256) {
+        return mulmod(a, b, FIELD_PRIME);
+    }
+
+    function _invMod(uint256 a) internal pure returns (uint256) {
+        if (a == 0) revert InvalidFieldElement();
+        return _powMod(a, FIELD_PRIME - 2);
+    }
+
+    function _powMod(
+        uint256 base,
+        uint256 exponent
+    ) internal pure returns (uint256) {
+        uint256 result = 1;
+        uint256 current = base % FIELD_PRIME;
+        uint256 e = exponent;
+
+        while (e > 0) {
+            if (e & 1 == 1) {
+                result = mulmod(result, current, FIELD_PRIME);
+            }
+            current = mulmod(current, current, FIELD_PRIME);
+            e >>= 1;
+        }
+
+        return result;
+    }
 }
