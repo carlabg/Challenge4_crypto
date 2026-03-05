@@ -31,34 +31,64 @@ Public on-chain visibility:
 ---
 
 ## Protocol
-Contract file: `MovieNightAllFriends.sol`
+# Challenge 4: Social Recovery Vault – "The Watch Party Protocol"
 
-### Setup phase (one-time deployment)
-1. Organizer deploys contract once with fixed `friends[]`.
+## 1. Project Overview
+This project adapts the concept of a **Social Recovery Vault** to a synchronized social experience. Instead of recovering a lost wallet, a group of 6 friends must "recover" a secret decryption key to watch a TV episode together. The key is mathematically hidden across the group and can only be revealed if all participants submit their specific cryptographic shares to the blockchain.
 
-### Per-episode setup (repeated for each new round)
-1. Organizer chooses episode secret `S_e` (bytes32).
-2. Organizer creates `n` shares (`s1...sn`) such that `s1 XOR s2 XOR ... XOR sn = S_e`.
-3. For each friend `i`, organizer generates random `salt_i` and computes commitment bound to episode id:
-	 `c_i = keccak256(friend_i, episodeId, s_i, salt_i)`.
-4. Organizer calls `startEpisode(commitments[], movieCodeHash, revealWindowSeconds)`.
+## 2. The Protocol
+### Step 1: Setup (Off-chain)
+The **Dealer** prepares the "lock" for the upcoming episode:
 
-### Happy path (normal operation)
-1. Each friend calls `revealShare(share, salt)` for the **current episode** before deadline.
-2. Contract verifies commitment match and one-time reveal.
-3. Contract updates XOR accumulator and reveal count.
-4. When `revealCount == totalFriends`, contract reconstructs `S` and checks `keccak256(S) == movieCodeHash`.
-5. If valid, current episode is unlocked and `MovieUnlocked(episodeId, ...)` is emitted.
-6. Organizer can then start the next episode (`episodeId + 1`) with fresh commitments.
+1.  **Security Parameter**: Choose a 256-bit prime $q$.
+2.  **Generate Coefficients**: 
+    * The Dealer chooses $a_1, \dots, a_{n-1}$ randomly from the field $\mathbb{Z}_q$.
+    * The Dealer computes $a_n$ based on the Secret (Episode Key) and the sum of the other coefficients to satisfy the required variant:
+        $$a_n = (\text{Secret} - \sum_{i=1}^{n-1} a_i) \pmod q$$
+3.  **Construct Polynomial**: A polynomial $f(x)$ is defined where the $y$-intercept ($x=0$) is the secret:
+    $$f(x) = a_n x^n + a_{n-1} x^{n-1} + \dots + a_1 x + \text{Secret}$$
+4.  **Distribute Shares**: Friend $i$ receives their private share: $(i, f(i))$.
+5.  **Commitment**: The Host uploads `keccak256(Secret)` to the smart contract. This "locks" the episode requirements without revealing the actual key to the public.
 
-### Failure cases
-- **Late reveal**: rejected (`DeadlinePassed`).
-- **Wrong share or wrong salt**: rejected (`InvalidShare`).
-- **Double reveal**: rejected (`AlreadyRevealed`).
-- **Not a registered friend**: rejected (`NotFriend`).
-- **Not everyone reveals before deadline**: current episode can be marked expired via `markExpired()`.
-- **All reveal but reconstruction mismatch**: emits `UnlockFailed`, and protocol expires.
-- **Organizer starts new episode too early**: rejected while previous episode is still active.
+
+
+### Step 2: Happy Path (Normal Operation)
+1.  **Gathering**: All 6 friends assemble online to watch the show.
+2.  **Submission**: Each friend interacts with the smart contract via the `unlockEpisode` function, providing their $(x, y)$ values.
+3.  **On-chain Reconstruction**: The contract executes **Lagrange Interpolation** to solve for $f(0)$.
+4.  **Verification**: The contract hashes the result. If `keccak256(Result) == StoredHash`, the secret is emitted via a `SecretRevealed` event.
+5.  **Access**: The group uses the revealed secret to decrypt the video stream. The contract automatically increments the `currentEpisode` counter.
+
+## 3. Threat Model (Failure Cases)
+
+| Attack Scenario | Design Mitigation |
+| :--- | :--- |
+| **The "Traitor" Friend** (Submits a wrong share) | The contract performs a `keccak256` check. If even one bit of one share is incorrect, the result won't match the hash and the transaction reverts. |
+| **The "Early Bird"** (Fewer than 6 people try to unlock) | Mathematically, $n$ points are required to solve a degree $n$ polynomial. With only $n-1$ points, the secret remains perfectly hidden (Information-Theoretic Security). |
+| **Replay Attack** (Using Episode 1 shares for Episode 2) | The contract tracks the `currentEpisode` state. Each episode requires a new commitment hash and a new set of shares from the Host. |
+| **Public Eavesdropping** (Hacker reading the contract) | Since only the **hash** is stored on-chain, the secret is never visible on the blockchain until the friends intentionally reconstruct it. |
+
+## 4. Cryptographic Primitives
+
+* **Shamir’s Secret Sharing (SSS)**: Used to distribute the secret key. It ensures that no single person knows the key.
+* **Lagrange Interpolation**: The algebraic method used on-chain to reconstruct the polynomial and find the value at $x=0$.
+* **Keccak-256 Hashing**: Acts as a **Commitment Scheme**. It allows the contract to verify the reconstruction result without having the secret pre-stored in plain text.
+
+* **Modular Inverse (Fermat's Little Theorem)**: Used to perform division within the finite field $\mathbb{Z}_q$ in Solidity, which is essential for the Lagrange formula.
+
+## 5. Implementation Details (Solidity)
+The contract is deployed on the **Sepolia Testnet**. Key features include:
+* `setEpisodeHash()`: Restricted to the Host to define the next goal.
+* `reconstructSecret()`: An optimized function implementing the summation of Lagrange basis polynomials.
+* **Modular Arithmetic**: Custom internal functions for `addMod`, `subMod`, and `mulMod` to handle 256-bit numbers within the prime field $Q$.
+
+---
+
+### **Demo Instructions**
+1.  **Deployment**: Show the contract on Remix and confirm it is connected to Sepolia.
+2.  **Locking**: Call `setEpisodeHash` with the hash of a secret (e.g., `777`).
+3.  **Unlocking (Happy Path)**: Input the 6 correct shares and show the event logs revealing the secret.
+4.  **Attack Scenario**: Attempt to unlock with one incorrect share to demonstrate the contract's revert mechanism.
 
 ---
 
