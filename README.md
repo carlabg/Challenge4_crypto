@@ -1,6 +1,7 @@
 # Challenge4_crypto — Movie Night Secret Sharing
 
 ## Scenario
+<<<<<<< HEAD
 Our system solves a simple coordination/trust problem: **n friends can only watch content if all n friends are present and participate**.
 
 Instead of trusting one person to hold the full access code, the code is split into secret shares. Each friend receives one share and must reveal it on-chain. An episode is unlocked only when all valid shares are revealed.
@@ -127,3 +128,24 @@ Final verification, scenario design choices, and test/demo execution were perfor
 
 ## Blockchain technology (brief)
 Blockchain is a distributed append-only ledger maintained by many nodes without a central authority. Smart contracts are programs executed deterministically by all nodes, allowing transparent and auditable rule enforcement between parties that do not fully trust each other.
+=======
+What problem the system solves, who it is designed for, and why using a blockchainbased solution makes sense.
+
+## Actors and assumptions. 
+Who the participants are, which actors are assumed to be honest or
+potentially malicious, and what information is publicly visible on the blockchain.
+## Protocol
+A step-by-step explanation of how the system works, including the happy path (normal
+operation) and possible failure cases.
+
+## Threats and attacks. 
+Describe at least one concrete attack, including its potential impact and how
+the system mitigates or prevents it.
+
+## Primitives
+List the cryptographic primitives used and their security properties.
+How to reproduce the demo. Provide 2–5 steps explaining how to reproduce the demo.
+
+## Scenario
+Six friends are tired of deciding that they are going to wait for each other to watch the new episodes of Game Of Thrones, and then, for one person to watch it before the others. They meet one day and decide to download a special App that locks each episode and requires a password to play. The unique feature of the App is that it sends a different code to each friend, and only when all codes are entered together can the password be retrieved. This way, the friends make sure that they can only watch the episodes when they are all together at the same time.
+>>>>>>> 53d37e441a40d19fdd693db2d9e4591e65b40de3
