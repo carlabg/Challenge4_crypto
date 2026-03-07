@@ -76,3 +76,4 @@ The reason this doesn't work is that blockchain transactions are cryptographical
 * **Lagrange Interpolation**: The mechanism used to implement Shamir Secret Sharing reconstruction of the polynomial and find the value at $x=0$.
 * **Modular Inverse (Fermat's Little Theorem)**: Used to perform division within the finite field $\mathbb{Z}_q$ in Solidity, which is essential for the Lagrange formula.
 
+## How to reproduce the demo
