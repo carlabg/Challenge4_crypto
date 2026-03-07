@@ -2,36 +2,34 @@
 
 ## Scenario: Secure Group Viewing for Game of Thrones
 
-Six friends are tired of agreeing to wait and watch the new episodes of *Game of Thrones* together, only for someone to secretly watch them early. They decide to use a special app that locks each episode and can only unlock it when **everyone is present and agrees at the same time**.
+Six friends are tired of agreeing to wait and watch the new episodes of *Game of Thrones* together, only for someone to secretly watch them early. They decide to use a special app that locks each episode and can only unlock it when **everyone is present and agrees at the same time**. Each episode is encrypted, and the decryption key is the secret locked in the contract.
 
 ### How It Works
 
-When a new episode is available, the app asks each friend to approve the viewing by submitting a **digital private share** from their own device. Key points:
+When a new episode is available, the app asks each friend to approve the viewing by submitting a **digital private share** from their own device. Unlike a shared password, no single friend's share reveals anything about the key, only when all six combine them can the episode be unlocked. Key points:
 
 - No one can enter another person’s code.
 - Only after the app verifies that **all six people’s private shares** have been submitted for that specific episode, it unlocks the video.
 - The episode can then be played.
 
-This solves the problem of early watching in a group with imperfect trust, **without relying on one friend or a centralized server**. The blockchain makes sense because the app provides a **shared, tamper-resistant source of truth**:
-
-- Everyone can verify that the rule is: *“all six must approve.”*
-- No single participant can override it.
+This solves the problem of early watching in a group where no single friend is fully trusted, and a central platform could be bribed or pressured. The adversary is any one of the six friends who might watch early if given the chance.
+This is exactly why a blockchain makes sense here, because the app provides a **shared, tamper-resistant source of truth**. We are protecting the decryption key from being revealed unless everyone agrees, and ensuring that nobody, not even your hacker friend, can change or bypass that rule
 
 ## Actors and Assumptions
 
 **Actors:**
 
-1. The six friends  
-2. The smart contract  
-3. The blockchain network  
+1. The six friends
+2. One friend acts as the Dealer and is assumed to be honest during setup. We acknowledge this is a trusted role. A malicious Dealer could distribute incorrect shares, preventing the episode from ever being unlocked 
 
 **Assumptions:**
 
-- Any friend could be potentially malicious and try to unlock early or claim others agreed.  
-- No friend can forge another friend’s private share.  
+- Any friend could be potentially malicious and try to unlock early or submit shares on behalf of others.  
+- No friend can forge another friend’s private share. *Shares are tied to a wallet's private key, and breaking that is computationally infeasible*.
 - Each friend controls their device and private key.  
-- Blockchain consensus works as intended.
----
+- The blockchain works as intended, any friend can always submit their transaction and it will be recorded.
+- The smart contract is a trusted executor: it runs exactly as coded and cannot be bribed or pressured
+- All submitted shares and the commitment hash are **publicly visible** on-chain. The secret itself is revealed publicly via an event when unlocked.
 
 ## Protocol
 ### Step 1: Setup (Off-chain)
