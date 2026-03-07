@@ -32,7 +32,7 @@ This is exactly why a blockchain makes sense here, because the app provides a **
 - All submitted shares and the commitment hash are **publicly visible** on-chain. The secret itself is revealed publicly via an event when unlocked.
 
 ## Protocol
-### Step 1: Setup (Off-chain)
+### Setup (Off-chain)
 The **Dealer** prepares the "lock" for the upcoming episode:
 
 1.  **Security Parameter**: Choose a 256-bit prime $q$.
@@ -45,20 +45,12 @@ The **Dealer** prepares the "lock" for the upcoming episode:
 4.  **Distribute Shares**: Friend $i$ receives their private share: $(i, f(i))$.
 5.  **Commitment**: The Dealer uploads `keccak256(Secret)` to the smart contract. This "locks" the episode requirements without revealing the actual key to the public.
 
-
-### Step 2: Happy Path (Normal Operation)
+### Happy Path (Normal Operation)
 1.  **Gathering**: All 6 friends assemble online to watch the show.
 2.  **Submission**: Each friend interacts with the smart contract via the `unlockEpisode` function, providing their $(i, f(i))$ values.
 3.  **On-chain Reconstruction**: The contract executes **Lagrange Interpolation** to solve for $f(0)$.
 4.  **Verification**: The contract hashes the result. If `keccak256(Result) == StoredHash`, the secret is emitted via a `SecretRevealed` event.
 5.  **Access**: The group uses the revealed secret to decrypt the video stream. The contract automatically increments the `currentEpisode` counter.
-
-### Threat Model (Intentional Attacks)
-| Attack Scenario | Design Mitigation |
-| :--- | :--- |
-| **The friend that doesn't want to watch the show** | A malicious friend submits a wrong share. The `keccak256` check fails because the math won't match the Dealer's commitment, causing the transaction to **fail**. |
-| **Excluding a friend** | A subset of friends tries to unlock the show early. Mathematically, $n$ points are required for a degree $n$ polynomial. $n-1$ points provide **zero information**. |
-
 
 ### System Failures (Unintentional Issues)
 | Failure Scenario | Impact | Mitigation |
@@ -66,10 +58,21 @@ The **Dealer** prepares the "lock" for the upcoming episode:
 | **Availability Loss** | A friend loses their phone/key. | Current design requires $n/n$. Future work: implement a $t$-out-of-$n$ threshold. |
 | **Initialization Error** | Dealer forgets to set the hash. | The `unlock` function requires a non-zero hash to be set before execution. |
 
-## Primitives
+## Threat Model (Intentional Attacks)
+**Wrong Share Attack**: A malicious friend submits a deliberately wrong share hoping to either block the group or test if the contract accepts bad input. The impact would be a failed unlock for everyone. The contract mitigates this by hashing the reconstructed secret and comparing it against the stored commitment, a wrong share corrupts the reconstruction, the hash won't match, and the transaction reverts. The episode remains locked for everyone until the malicious friend submits a correct share or is identified.
 
-* **Shamir’s Secret Sharing (SSS)**: Used to distribute the secret key. It ensures that no single person knows the key.
-* **Lagrange Interpolation**: The algebraic method used on-chain to reconstruct the polynomial and find the value at $x=0$.
-* **Keccak-256 Hashing**: Is a cryptographic hash function. In this protocol, it serves as a Commitment Scheme. It takes the secret episode key and produces a unique 32-byte "fingerprint.".
+**Replay Attack**: On a blockchain, all transactions are public. So when friend 1 submits their share, everyone can see the transaction, including the share value inside it. A replay attack means friend 2 takes that exact transaction from friend 1 and resubmits it as if it were their own, trying to count as two friends at once.
+The reason this doesn't work is that blockchain transactions are cryptographically signed by the sender's wallet. So even if friend 2 copies the transaction data, the contract knows it was sent by friend 2's address, not friend 1's. You registered friend 1's address for share 1, so the contract rejects it.
+
+**Excluding A Friend**: A subset of friends tries to unlock the show early. Mathematically, $n$ points are required for a degree $n$ polynomial. $n-1$ points provide zero information.
+
+**Known Limitation**: One attack we do not protect against is a malicious Dealer and a friend. If the Dealer teams up with friend 1, together they could create a completely fake set of shares, ones that reconstruct to a different secret than the real episode key. They distribute these fake shares to everyone. Everyone submits honestly, the contract accepts it, but the revealed secret decrypts nothing. Only the Dealer knows whether the commitment (of the hash) is genuine.
+
+## Primitives
+* **Shamir’s Secret Sharing (SSS)**: Used to distribute the secret key. It ensures that no single person knows the key. A subset of fewer than n shares reveals zero information about the secret.
+* **Keccak-256 Hashing**: Is a cryptographic hash function. In this protocol, it serves as a Commitment Scheme. It takes the secret episode key and produces a unique 32-byte "fingerprint". It is preimage resistant (you can't recover the secret from the hash), and collision resistance (you can't find a different secret that produces the same hash).
+
+### Implementation details, not cryptographic primitives
+* **Lagrange Interpolation**: The mechanism used to implement Shamir Secret Sharing reconstruction of the polynomial and find the value at $x=0$.
 * **Modular Inverse (Fermat's Little Theorem)**: Used to perform division within the finite field $\mathbb{Z}_q$ in Solidity, which is essential for the Lagrange formula.
 
