@@ -165,12 +165,12 @@ python3 generate_shares.py
 ```
 Generating shares...
 
-Friend 1: x=1, y=12731
-Friend 2: x=2, y=13906
-Friend 3: x=3, y=16023
-Friend 4: x=4, y=18982
-Friend 5: x=5, y=22783
-Friend 6: x=6, y=27426
+Friend 1: x=1, y=14010
+Friend 2: x=2, y=40983
+Friend 3: x=3, y=194496
+Friend 4: x=4, y=719637
+Friend 5: x=5, y=2071950
+Friend 6: x=6, y=4984035
 
 Secret (f(0)): 12345
 Hash (para setEpisodeHash): 0x1abc5def...
@@ -217,21 +217,21 @@ En las transacciones abajo, deberías ver una "Status: ✓"
 2. Parámetros:
    - episodeId: 1
    - x: 1
-   - y: 12731 (del Friend 1)
+   - y: 14010 (del Friend 1)
 3. Click "transact"
 4. Confirmar en Metamask
 
 REPETIR PARA LOS 6 AMIGOS:
-   Friend 2: x=2, y=13906
-   Friend 3: x=3, y=16023
-   Friend 4: x=4, y=18982
-   Friend 5: x=5, y=22783
-   Friend 6: x=6, y=27426
+   Friend 2: x=2, y=40983
+   Friend 3: x=3, y=194496
+   Friend 4: x=4, y=719637
+   Friend 5: x=5, y=2071950
+   Friend 6: x=6, y=4984035
 ```
 
 **NOTA:** En una demo real, cada amigo haría esto desde su propia wallet. Para simplificar, todos usan la misma wallet de Remix, pero técnicamente es como si cada uno participara.
 
-### 5.3 STEP 3: Verificar que el secret fue reconstruido
+### 5.3 STEP 3: Verificar que el episodio fue desbloqueado
 
 **En Remix:**
 ```
@@ -245,16 +245,43 @@ REPETIR PARA LOS 6 AMIGOS:
 (
   submissions: 6,
   secretRevealed: true,
-  reconstructedSecret: 12345,
   secretHash: 0x1abc5def...
 )
 ```
 
+> ⚠️ **NOTA:** El contrato ya NO devuelve `reconstructedSecret`. Solo confirma
+> que la verificación fue exitosa. El secret NUNCA se almacena ni se emite on-chain.
+> El evento emitido es `EpisodeUnlocked(episodeId)` — sin el valor del secret.
+
 **¡ÉXITO! ✅**
 - ✓ Submissions = 6 (todos enviaron)
 - ✓ secretRevealed = true (fue desbloqueado)
-- ✓ reconstructedSecret = 12345 (coincide con el secret original)
 - ✓ El hash verificó y matcheó
+- ✓ El secret NUNCA fue expuesto on-chain
+
+---
+
+## 🏠 FASE 6: Reconstrucción Local del Secret
+
+**Duración:** 2 mins
+**Deliverable:** Cada amigo obtiene el secret en su máquina local
+
+### 6.1 ¿Por qué este paso?
+
+El contrato ya confirmó que los shares son correctos, pero **no reveló el secret**.
+Los amigos ahora reconstruyen el secret localmente usando el mismo Python script.
+
+### 6.2 Reconstruir con Python
+
+```python
+# Cada amigo ya tiene su share y puede ver los demás en los eventos ShareSubmitted
+# Ejecutar: python3 generate_shares.py
+# Output: Secret (f(0)): 12345
+```
+
+**Resultado:** Los amigos obtienen el secret (`12345`) **off-chain**, de forma privada.
+El contrato actuó solo como **árbitro** — confirmó que los shares eran correctos
+sin revelar el secret públicamente.
 
 ---
 
@@ -266,8 +293,9 @@ REPETIR PARA LOS 6 AMIGOS:
 | **2. Sepolia + ETH** | 5 mins | Wallet con fondos |
 | **3. Deploy** | 5 mins | Contrato on-chain en Sepolia |
 | **4. Generar Shares** | 10 mins | 6 shares listos |
-| **5. Demo** | 10 mins | ✅ Lagrange reconstruye secret |
-| | **~40 mins** | **DEMO FUNCIONAL** |
+| **5. Demo On-Chain** | 10 mins | ✅ Contrato verifica sin revelar |
+| **6. Reconstrucción Local** | 2 mins | 🏠 Secret reconstruido off-chain |
+| | **~42 mins** | **DEMO FUNCIONAL** |
 
 ---
 
@@ -281,8 +309,9 @@ Antes de mostrar al público:
 - [ ] Generé los 6 shares correctamente
 - [ ] Ejecuté setEpisodeHash() en Remix
 - [ ] Ejecuté unlockEpisode() con los 6 shares
-- [ ] getEpisodeStatus() muestra secretRevealed=true
-- [ ] El reconstructedSecret coincide con el secreto original
+- [ ] getEpisodeStatus() muestra secretRevealed=true (sin revelar el secret)
+- [ ] Evento EpisodeUnlocked emitido (no SecretRevealed)
+- [ ] Reconstruí el secret localmente con Python → coincide con el original
 
 ---
 
@@ -309,17 +338,18 @@ Antes de mostrar al público:
 3. Calculamos f(1), f(2), ..., f(6) → estos son los shares
 4. Cada amigo i envía (i, f(i))
 5. EL CONTRATO INTERPOLA USANDO LAGRANGE
-6. Reconstruye f(0) = 12345
-7. Verifica que keccak256(12345) == hash que guardamos
-8. ✅ ÉXITO - SECRET RECONSTRUIDO CORRECTAMENTE
+6. Verifica que keccak256(resultado) == hash guardado
+7. ✅ Emite EpisodeUnlocked — pero NUNCA guarda ni emite el secret
+8. 🏠 Los amigos reconstruyen el secret LOCALMENTE con Python
 ```
 
 **Por qué es tan cool:**
-- El secret NUNCA se reveló en la blockchain
+- El secret NUNCA se almacena ni se emite on-chain
+- El contrato actúa como **árbitro**: solo dice "sí, es correcto" ✅
 - Solo pedazos (shares) se enviaron
 - Solo cuando TODOS 6 colaboran, se recupera el secret
 - La matemática de Lagrange interpolation lo hace posible
-- Es totalmente verificable on-chain
+- Es totalmente verificable on-chain, pero **privado**
 
 ---
 
@@ -345,13 +375,19 @@ SLIDE 4: "Los 6 amigos envían sus shares"
 - Ejecutar unlockEpisode() 6 veces
 - Mostrar que el contador sube 1→2→3→...→6
 
-SLIDE 5: "Magic - Lagrange Reconstrucción"
+SLIDE 5: "El contrato verifica — sin revelar"
 - Ejecutar getEpisodeStatus()
 - Mostrar que secretRevealed = true
-- Mostrar que reconstructedSecret = 12345
-- "¡El secret fue reconstruido correctamente!"
+- Mostrar que NO hay reconstructedSecret visible
+- "El contrato confirmó que es correcto, pero NO reveló el secret"
 
-SLIDE 6: "¿Por qué es seguro?"
+SLIDE 6: "Reconstrucción Local"
+- Ejecutar Python script localmente
+- Mostrar que los amigos obtienen 12345 en su máquina
+- "El secret se reconstruye OFF-chain, de forma privada"
+
+SLIDE 7: "¿Por qué es seguro?"
+- El secret NUNCA aparece on-chain (ni en storage, ni en eventos)
 - 5 amigos solos = cero información sobre f(0)
 - 6 amigos juntos = reconstrucción perfecta
 - Es matemática, no confianza

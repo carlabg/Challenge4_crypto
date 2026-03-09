@@ -14,7 +14,6 @@ contract MovieNightAllFriends {
     struct Episode {
         bytes32 secretHash;
         uint256 submissions;
-        uint256 reconstructedSecret;
         bool secretRevealed;
         bool initialized;
     }
@@ -36,7 +35,7 @@ contract MovieNightAllFriends {
         uint256 y,
         uint256 submissions
     );
-    event SecretRevealed(uint256 indexed episodeId, uint256 secret);
+    event EpisodeUnlocked(uint256 indexed episodeId);
 
     error NotOrganizer();
     error NotFriend();
@@ -103,7 +102,6 @@ contract MovieNightAllFriends {
         episode.secretHash = secretHash;
         episode.initialized = true;
         episode.submissions = 0;
-        episode.reconstructedSecret = 0;
         episode.secretRevealed = false;
 
         emit EpisodeHashSet(currentEpisode, secretHash);
@@ -161,7 +159,6 @@ contract MovieNightAllFriends {
         returns (
             uint256 submissions,
             bool secretRevealed,
-            uint256 reconstructedSecret,
             bytes32 secretHash
         )
     {
@@ -169,7 +166,6 @@ contract MovieNightAllFriends {
         return (
             episode.submissions,
             episode.secretRevealed,
-            episode.reconstructedSecret,
             episode.secretHash
         );
     }
@@ -182,9 +178,9 @@ contract MovieNightAllFriends {
             revert ReconstructionMismatch();
         }
 
-        episode.reconstructedSecret = secret;
+        // Only store that verification passed — secret never saved on-chain
         episode.secretRevealed = true;
-        emit SecretRevealed(episodeId, secret);
+        emit EpisodeUnlocked(episodeId);
     }
 
     function _reconstructAtZero(uint256 episodeId) internal view returns (uint256) {
