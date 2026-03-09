@@ -35,6 +35,13 @@ contract MovieNightAllFriends {
         uint256 y,
         uint256 submissions
     );
+    event ShareUpdated(
+        uint256 indexed episodeId,
+        address indexed friend,
+        uint256 x,
+        uint256 previousY,
+        uint256 newY
+    );
     event EpisodeUnlocked(uint256 indexed episodeId);
 
     error NotOrganizer();
@@ -44,7 +51,6 @@ contract MovieNightAllFriends {
     error LengthMismatch();
     error EpisodeStillActive();
     error NoActiveEpisode();
-    error AlreadySubmitted();
     error InvalidFieldElement();
     error InvalidXForFriend();
     error ReconstructionMismatch();
@@ -124,15 +130,19 @@ contract MovieNightAllFriends {
     function _submitShare(uint256 episodeId, uint256 x, uint256 y) internal {
         Episode storage episode = episodes[episodeId];
         if (!episode.initialized || episode.secretRevealed) revert AlreadyFinalized();
-        if (hasSubmitted[episodeId][msg.sender]) revert AlreadySubmitted();
         if (x != friendX[msg.sender]) revert InvalidXForFriend();
         if (x == 0 || x >= FIELD_PRIME || y >= FIELD_PRIME) {
             revert InvalidFieldElement();
         }
 
+        bool firstSubmission = !hasSubmitted[episodeId][msg.sender];
+        uint256 previousY = submittedY[episodeId][msg.sender];
         hasSubmitted[episodeId][msg.sender] = true;
         submittedY[episodeId][msg.sender] = y;
-        episode.submissions += 1;
+
+        if (firstSubmission) {
+            episode.submissions += 1;
+        }
 
         emit ShareSubmitted(
             episodeId,
@@ -142,8 +152,14 @@ contract MovieNightAllFriends {
             episode.submissions
         );
 
-        if (episode.submissions == totalFriends) {
-            _finalizeEpisode(episodeId);
+        if (!firstSubmission) {
+            emit ShareUpdated(
+                episodeId,
+                msg.sender,
+                x,
+                previousY,
+                y
+            );
         }
     }
 
