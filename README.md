@@ -81,7 +81,7 @@ The reason this doesn't work is that blockchain transactions are cryptographical
 **Prerequisites:** MetaMask installed, connected to Sepolia testnet (Chain ID: 11155111), and with testnet ETH.
 
 **Step 1: Deploy the contract**
-Open `MovieNightAllFriends.sol` in Remix IDE. Compile with Solidity `^0.8.31`, then deploy to Sepolia via Injected Provider (MetaMask). Pass the six friends' wallet addresses as the constructor argument.
+Open `MovieNightAllFriends.sol` in Remix IDE. Compile with Solidity `^0.8.24`, then deploy to Sepolia via Injected Provider (MetaMask). Pass the six friends' wallet addresses as the constructor argument.
 
 **Step 2: Dealer setup**
 Run `generate_shares.py` to generate the polynomial, the six shares, and the `keccak256` commitment. The Dealer calls `setEpisodeHash()` on the deployed contract with the commitment hash. Shares are sent to each friend privately off-chain.
