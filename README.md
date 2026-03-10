@@ -76,4 +76,18 @@ The reason this doesn't work is that blockchain transactions are cryptographical
 * **Lagrange Interpolation**: The mechanism used to implement Shamir Secret Sharing reconstruction of the polynomial and find the value at $x=0$.
 * **Modular Inverse (Fermat's Little Theorem)**: Used to perform division within the finite field $\mathbb{Z}_q$ in Solidity, which is essential for the Lagrange formula.
 
-## How to reproduce the demo
+## How to Reproduce the Demo
+
+**Prerequisites:** MetaMask installed, connected to Sepolia testnet (Chain ID: 11155111), and with testnet ETH.
+
+**Step 1: Deploy the contract**
+Open `MovieNightAllFriends.sol` in Remix IDE. Compile with Solidity `^0.8.31`, then deploy to Sepolia via Injected Provider (MetaMask). Pass the six friends' wallet addresses as the constructor argument.
+
+**Step 2: Dealer setup**
+Run `generate_shares.py` to generate the polynomial, the six shares, and the `keccak256` commitment. The Dealer calls `setEpisodeHash()` on the deployed contract with the commitment hash. Shares are sent to each friend privately off-chain.
+
+**Step 3: Happy path — all friends submit**
+Each friend calls `unlockEpisode(episodeId, x, y)` with their share from their own wallet. Once all six shares are submitted, anyone can call `finalizeEpisode(episodeId)`. The contract runs Lagrange Interpolation, verifies the hash, and emits `EpisodeUnlocked`.
+
+**Step 4: Edge case — deadlock**
+To demonstrate the failure case, have one friend withhold their share. The contract will not finalize — `finalizeEpisode` reverts with `NotEnoughShares`. The organizer must call `setEpisodeHash()` again to reset, which increments the episode counter.
