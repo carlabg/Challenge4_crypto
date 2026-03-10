@@ -91,3 +91,5 @@ Each friend calls `unlockEpisode(episodeId, x, y)` with their share from their o
 
 **Step 4: Edge case — deadlock**
 To demonstrate the failure case, have one friend withhold their share. The contract will not finalize — `finalizeEpisode` reverts with `NotEnoughShares`. The organizer must call `setEpisodeHash()` again to reset, which increments the episode counter.
+
+**Note:** Steps 3 and 4 are partially implemented in the contract. Due to our limited experience with Solidity, we were unable to complete these features within the time constraints of the hackathon.
